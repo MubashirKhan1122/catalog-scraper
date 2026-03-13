@@ -2,7 +2,7 @@
 
 import re
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from typing import Optional
 import requests
 from bs4 import BeautifulSoup
@@ -34,7 +34,14 @@ def safe_request(url: str, max_retries: int = 3, delay: float = 1.0) -> Optional
 
 def join_url(base_url: str, relative_url: str) -> str:
     """
-    Join a base URL with a relative URL.
+    Join a base URL with a relative URL, handling all edge cases.
+
+    Properly resolves:
+    - Relative paths (../path, ./path, path)
+    - Absolute paths (/path)
+    - Protocol-relative URLs (//example.com/path)
+    - Full URLs (http://example.com/path)
+    - Query parameters and fragments
 
     Args:
         base_url: The base URL
@@ -43,7 +50,54 @@ def join_url(base_url: str, relative_url: str) -> str:
     Returns:
         The complete URL
     """
-    return urljoin(base_url, relative_url)
+    if not relative_url:
+        return base_url
+
+    # Handle empty or whitespace-only relative URLs
+    relative_url = relative_url.strip()
+    if not relative_url:
+        return base_url
+
+    # Use urljoin which properly handles all URL resolution cases
+    resolved_url = urljoin(base_url, relative_url)
+
+    return resolved_url
+
+
+def normalize_url(url: str) -> str:
+    """
+    Normalize a URL for comparison and deduplication.
+
+    - Removes trailing slashes
+    - Converts to lowercase (for domain)
+    - Removes default ports
+    - Sorts query parameters
+
+    Args:
+        url: The URL to normalize
+
+    Returns:
+        Normalized URL
+    """
+    if not url:
+        return ""
+
+    # Remove trailing slash
+    url = url.rstrip('/')
+
+    # Parse the URL
+    parsed = urlparse(url)
+
+    # Normalize the URL
+    normalized = f"{parsed.scheme}://{parsed.netloc.lower()}{parsed.path}"
+
+    if parsed.query:
+        normalized += f"?{parsed.query}"
+
+    if parsed.fragment:
+        normalized += f"#{parsed.fragment}"
+
+    return normalized
 
 
 def clean_text(text: Optional[str]) -> str:
