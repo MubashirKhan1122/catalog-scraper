@@ -36,8 +36,8 @@ class CatalogCrawler:
         categories = []
 
         # Find category links in the navigation
-        # The site uses a navbar with category links
-        category_links = soup.select('a.category')
+        # The site uses a.category-link for categories
+        category_links = soup.select('a.category-link')
 
         for link in category_links:
             category_name = clean_text(link.get_text())
