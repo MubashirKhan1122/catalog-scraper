@@ -1,108 +1,49 @@
-"""Utility functions for the scraper."""
+"""
+Simple utility functions for web scraping.
+Easy to understand for university students.
+"""
 
-import re
-import time
-from urllib.parse import urljoin, urlparse
-from typing import Optional
 import requests
-from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 
-def safe_request(url: str, max_retries: int = 3, delay: float = 1.0) -> Optional[requests.Response]:
+def get_page(url):
     """
-    Make a safe HTTP request with retry logic.
+    Get a webpage (simple version).
 
     Args:
-        url: The URL to fetch
-        max_retries: Maximum number of retry attempts
-        delay: Delay between retries in seconds
+        url: The website address
 
     Returns:
-        Response object if successful, None otherwise
+        The webpage content, or None if error
     """
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return response
-        except requests.exceptions.RequestException as e:
-            print(f"Attempt {attempt + 1}/{max_retries} failed for {url}: {e}")
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-    return None
+    try:
+        response = requests.get(url)
+        return response.text
+    except:
+        print(f"Error getting page: {url}")
+        return None
 
 
-def join_url(base_url: str, relative_url: str) -> str:
+def join_url(base, path):
     """
-    Join a base URL with a relative URL, handling all edge cases.
-
-    Properly resolves:
-    - Relative paths (../path, ./path, path)
-    - Absolute paths (/path)
-    - Protocol-relative URLs (//example.com/path)
-    - Full URLs (http://example.com/path)
-    - Query parameters and fragments
+    Join two URLs together.
+    Example: join_url('https://example.com', '/page')
+             -> 'https://example.com/page'
 
     Args:
-        base_url: The base URL
-        relative_url: The relative URL to join
+        base: The main website URL
+        path: The page path
 
     Returns:
-        The complete URL
+        Complete URL
     """
-    if not relative_url:
-        return base_url
-
-    # Handle empty or whitespace-only relative URLs
-    relative_url = relative_url.strip()
-    if not relative_url:
-        return base_url
-
-    # Use urljoin which properly handles all URL resolution cases
-    resolved_url = urljoin(base_url, relative_url)
-
-    return resolved_url
+    return urljoin(base, path)
 
 
-def normalize_url(url: str) -> str:
+def clean_text(text):
     """
-    Normalize a URL for comparison and deduplication.
-
-    - Removes trailing slashes
-    - Converts to lowercase (for domain)
-    - Removes default ports
-    - Sorts query parameters
-
-    Args:
-        url: The URL to normalize
-
-    Returns:
-        Normalized URL
-    """
-    if not url:
-        return ""
-
-    # Remove trailing slash
-    url = url.rstrip('/')
-
-    # Parse the URL
-    parsed = urlparse(url)
-
-    # Normalize the URL
-    normalized = f"{parsed.scheme}://{parsed.netloc.lower()}{parsed.path}"
-
-    if parsed.query:
-        normalized += f"?{parsed.query}"
-
-    if parsed.fragment:
-        normalized += f"#{parsed.fragment}"
-
-    return normalized
-
-
-def clean_text(text: Optional[str]) -> str:
-    """
-    Clean and normalize text by removing extra whitespace.
+    Clean up text (remove extra spaces).
 
     Args:
         text: The text to clean
@@ -110,120 +51,81 @@ def clean_text(text: Optional[str]) -> str:
     Returns:
         Cleaned text
     """
-    if text is None:
+    if not text:
         return ""
-    # Remove extra whitespace and newlines
-    text = re.sub(r'\s+', ' ', text.strip())
+
+    # Remove extra spaces and newlines
+    text = text.strip()
+    text = " ".join(text.split())
     return text
 
 
-def parse_price(price_str: Optional[str]) -> Optional[float]:
+def get_price(price_text):
     """
-    Parse price string into a float value.
+    Convert price text to number.
+    Example: "$123.45" -> 123.45
 
     Args:
-        price_str: String containing price (e.g., "$123.45")
+        price_text: Price as text (like "$123.45")
 
     Returns:
-        Float value of price or None if parsing fails
+        Price as number (like 123.45)
     """
-    if not price_str:
-        return None
+    if not price_text:
+        return 0
+
+    # Remove $ and commas
+    price_text = price_text.replace('$', '').replace(',', '').strip()
 
     try:
-        # Remove currency symbols and commas, extract numbers
-        price_str = clean_text(price_str)
-        # Find all numbers including decimals
-        match = re.search(r'[\d,]+\.?\d*', price_str.replace(',', ''))
-        if match:
-            return float(match.group())
-    except (ValueError, AttributeError):
-        pass
-
-    return None
+        return float(price_text)
+    except:
+        return 0
 
 
-def parse_rating(rating_str: Optional[str]) -> Optional[int]:
+def get_number(text):
     """
-    Parse review count or rating string into an integer.
+    Get a number from text.
+    Example: "12 reviews" -> 12
 
     Args:
-        rating_str: String containing rating or review count
+        text: Text containing a number
 
     Returns:
-        Integer value or None if parsing fails
+        The number found
     """
-    if not rating_str:
-        return None
+    if not text:
+        return 0
 
-    try:
-        # Extract numbers from string
-        match = re.search(r'\d+', rating_str)
-        if match:
-            return int(match.group())
-    except (ValueError, AttributeError):
-        pass
+    # Find all digits
+    numbers = ''.join(c for c in text if c.isdigit())
 
-    return None
+    if numbers:
+        return int(numbers)
+    return 0
 
 
-def normalize_url(url: str) -> str:
+def remove_duplicates(products):
     """
-    Normalize a URL for deduplication purposes.
-
-    - Removes trailing slashes
-    - Lowercases the domain
-    - Preserves path case sensitivity
+    Remove duplicate products from list.
 
     Args:
-        url: The URL to normalize
+        products: List of products
 
     Returns:
-        Normalized URL string
-    """
-    if not url:
-        return ""
-
-    # Remove trailing slash
-    url = url.rstrip('/')
-
-    # Parse the URL
-    parsed = urlparse(url)
-
-    # Rebuild with normalized domain
-    normalized = f"{parsed.scheme}://{parsed.netloc.lower()}{parsed.path}"
-
-    if parsed.query:
-        normalized += f"?{parsed.query}"
-
-    if parsed.fragment:
-        normalized += f"#{parsed.fragment}"
-
-    return normalized
-
-
-def deduplicate_products(products: list) -> tuple:
-    """
-    Remove duplicate products based on normalized product URL.
-
-    Args:
-        products: List of product dictionaries
-
-    Returns:
-        Tuple of (deduplicated products list, duplicate count)
+        List without duplicates, count of duplicates removed
     """
     seen_urls = set()
-    unique_products = []
-    duplicate_count = 0
+    unique = []
+    duplicates = 0
 
     for product in products:
         url = product.get('product_url', '')
-        normalized = normalize_url(url)
 
-        if normalized and normalized not in seen_urls:
-            seen_urls.add(normalized)
-            unique_products.append(product)
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            unique.append(product)
         else:
-            duplicate_count += 1
+            duplicates += 1
 
-    return unique_products, duplicate_count
+    return unique, duplicates

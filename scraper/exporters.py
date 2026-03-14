@@ -1,39 +1,44 @@
-"""Export scraped data to CSV and JSON files."""
+"""
+Simple exporter to save data to CSV and JSON files.
+Easy to understand for students.
+"""
 
 import csv
 import json
-from typing import List, Dict
-from collections import defaultdict
 
 
-class DataExporter:
-    """Export product data and summaries to CSV files."""
+class SimpleExporter:
+    """
+    Simple exporter that saves products to files.
+    Can save as: CSV (Excel) or JSON
+    """
 
-    def __init__(self, output_dir: str = "data"):
+    def __init__(self, folder_name="data"):
         """
-        Initialize the exporter.
+        Start the exporter.
 
         Args:
-            output_dir: Directory to save CSV files
+            folder_name: Folder where files will be saved
         """
-        self.output_dir = output_dir
+        self.folder = folder_name
 
-    def export_products(self, products: List[Dict], filename: str = "products.csv") -> None:
+    def save_to_csv(self, products, filename="products.csv"):
         """
-        Export products to a CSV file.
+        Save products to a CSV file (can open in Excel).
 
         Args:
-            products: List of product dictionaries
-            filename: Name of the output CSV file
+            products: List of products
+            filename: Name of the CSV file
         """
         if not products:
-            print("No products to export")
+            print("No products to save")
             return
 
-        filepath = f"{self.output_dir}/{filename}"
+        # Full file path
+        filepath = f"{self.folder}/{filename}"
 
-        # Define CSV columns
-        fieldnames = [
+        # Define column names
+        columns = [
             'category',
             'subcategory',
             'title',
@@ -46,205 +51,152 @@ class DataExporter:
             'source_page'
         ]
 
-        try:
-            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-
-                for product in products:
-                    # Ensure all fields exist
-                    row = {field: product.get(field, '') for field in fieldnames}
-                    writer.writerow(row)
-
-            print(f"Exported {len(products)} products to {filepath}")
-
-        except Exception as e:
-            print(f"Error exporting products: {e}")
-
-    def export_category_summary(self, products: List[Dict], filename: str = "category_summary.csv") -> None:
-        """
-        Generate and export category summary statistics.
-
-        Args:
-            products: List of product dictionaries
-            filename: Name of the output CSV file
-        """
-        if not products:
-            print("No products to summarize")
-            return
-
-        filepath = f"{self.output_dir}/{filename}"
-
-        # Group products by subcategory
-        subcategory_data = defaultdict(list)
-
-        for product in products:
-            category = product.get('category', 'Unknown')
-            subcategory = product.get('subcategory', 'Unknown')
-            key = f"{category} > {subcategory}"
-            subcategory_data[key].append(product)
-
-        # Calculate statistics
-        summary_rows = []
-
-        for subcategory_key, prods in subcategory_data.items():
-            # Extract prices
-            prices = [p.get('price') for p in prods if p.get('price') is not None]
-
-            # Count missing descriptions
-            missing_descriptions = sum(1 for p in prods if not p.get('description', '').strip())
-
-            # Calculate stats
-            total_products = len(prods)
-            avg_price = sum(prices) / len(prices) if prices else 0
-            min_price = min(prices) if prices else 0
-            max_price = max(prices) if prices else 0
-
-            summary_rows.append({
-                'subcategory': subcategory_key,
-                'total_products': total_products,
-                'average_price': round(avg_price, 2),
-                'min_price': min_price,
-                'max_price': max_price,
-                'missing_descriptions': missing_descriptions,
-                'duplicates_removed': 0  # Will be set by the caller
-            })
-
-        # Sort by subcategory name
-        summary_rows.sort(key=lambda x: x['subcategory'])
-
         # Write to CSV
-        fieldnames = [
-            'subcategory',
-            'total_products',
-            'average_price',
-            'min_price',
-            'max_price',
-            'missing_descriptions',
-            'duplicates_removed'
-        ]
+        with open(filepath, 'w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=columns)
 
-        try:
-            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(summary_rows)
+            # Write header row
+            writer.writeheader()
 
-            print(f"Exported category summary to {filepath}")
+            # Write each product
+            for product in products:
+                writer.writerow(product)
 
-        except Exception as e:
-            print(f"Error exporting summary: {e}")
+        print(f"✓ Saved {len(products)} products to {filepath}")
 
-    def update_summary_duplicates(self, filename: str, duplicate_count: int) -> None:
+    def save_to_json(self, products, filename="products.json"):
         """
-        Update the summary CSV with the total duplicate count.
+        Save products to a JSON file (for web/API use).
 
         Args:
-            filename: Name of the summary CSV file
-            duplicate_count: Total number of duplicates removed
-        """
-        filepath = f"{self.output_dir}/{filename}"
-
-        try:
-            # Read existing data
-            with open(filepath, 'r', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile)
-                rows = list(reader)
-
-            # Update first row with duplicate count (as a global stat)
-            if rows:
-                rows[0]['duplicates_removed'] = duplicate_count
-
-            # Write back
-            fieldnames = list(rows[0].keys()) if rows else []
-            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-
-        except Exception as e:
-            print(f"Error updating summary duplicates: {e}")
-
-    def export_products_json(self, products: List[Dict], filename: str = "products.json") -> None:
-        """
-        Export products to a JSON file.
-
-        Args:
-            products: List of product dictionaries
-            filename: Name of the output JSON file
+            products: List of products
+            filename: Name of the JSON file
         """
         if not products:
-            print("No products to export")
+            print("No products to save")
             return
 
-        filepath = f"{self.output_dir}/{filename}"
+        # Full file path
+        filepath = f"{self.folder}/{filename}"
 
-        try:
-            with open(filepath, 'w', encoding='utf-8') as jsonfile:
-                json.dump(products, jsonfile, indent=2, ensure_ascii=False)
+        # Write to JSON
+        with open(filepath, 'w', encoding='utf-8') as file:
+            json.dump(products, file, indent=2, ensure_ascii=False)
 
-            print(f"Exported {len(products)} products to {filepath}")
+        print(f"✓ Saved {len(products)} products to {filepath}")
 
-        except Exception as e:
-            print(f"Error exporting products to JSON: {e}")
-
-    def export_category_summary_json(self, products: List[Dict], filename: str = "category_summary.json") -> None:
+    def save_summary_csv(self, products, filename="category_summary.csv"):
         """
-        Generate and export category summary statistics to JSON.
+        Create a summary report and save to CSV.
+        Shows: total products, average price, min/max price per category.
 
         Args:
-            products: List of product dictionaries
-            filename: Name of the output JSON file
+            products: List of products
+            filename: Name of the summary CSV file
         """
         if not products:
             print("No products to summarize")
             return
 
-        filepath = f"{self.output_dir}/{filename}"
-
         # Group products by subcategory
-        subcategory_data = defaultdict(list)
-
+        groups = {}
         for product in products:
             category = product.get('category', 'Unknown')
             subcategory = product.get('subcategory', 'Unknown')
             key = f"{category} > {subcategory}"
-            subcategory_data[key].append(product)
 
-        # Calculate statistics
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(product)
+
+        # Calculate statistics for each group
         summary = []
-
-        for subcategory_key, prods in subcategory_data.items():
-            # Extract prices
-            prices = [p.get('price') for p in prods if p.get('price') is not None]
-
-            # Count missing descriptions
-            missing_descriptions = sum(1 for p in prods if not p.get('description', '').strip())
+        for group_name, group_products in groups.items():
+            # Get all prices
+            prices = [p['price'] for p in group_products if p.get('price')]
 
             # Calculate stats
-            total_products = len(prods)
+            total = len(group_products)
             avg_price = sum(prices) / len(prices) if prices else 0
             min_price = min(prices) if prices else 0
             max_price = max(prices) if prices else 0
+
+            # Count missing descriptions
+            missing_desc = sum(1 for p in group_products if not p.get('description', '').strip())
 
             summary.append({
-                'subcategory': subcategory_key,
-                'total_products': total_products,
+                'subcategory': group_name,
+                'total_products': total,
                 'average_price': round(avg_price, 2),
                 'min_price': min_price,
                 'max_price': max_price,
-                'missing_descriptions': missing_descriptions,
-                'duplicates_removed': 0  # Will be updated by caller
+                'missing_descriptions': missing_desc,
+                'duplicates_removed': 0
             })
 
-        # Sort by subcategory name
-        summary.sort(key=lambda x: x['subcategory'])
+        # Save to CSV
+        filepath = f"{self.folder}/{filename}"
+        columns = ['subcategory', 'total_products', 'average_price',
+                   'min_price', 'max_price', 'missing_descriptions', 'duplicates_removed']
 
-        try:
-            with open(filepath, 'w', encoding='utf-8') as jsonfile:
-                json.dump(summary, jsonfile, indent=2, ensure_ascii=False)
+        with open(filepath, 'w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(summary)
 
-            print(f"Exported category summary to {filepath}")
+        print(f"✓ Saved summary to {filepath}")
 
-        except Exception as e:
-            print(f"Error exporting summary to JSON: {e}")
+    def save_summary_json(self, products, filename="category_summary.json"):
+        """
+        Create a summary report and save to JSON.
+
+        Args:
+            products: List of products
+            filename: Name of the summary JSON file
+        """
+        if not products:
+            print("No products to summarize")
+            return
+
+        # Group products by subcategory
+        groups = {}
+        for product in products:
+            category = product.get('category', 'Unknown')
+            subcategory = product.get('subcategory', 'Unknown')
+            key = f"{category} > {subcategory}"
+
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(product)
+
+        # Calculate statistics for each group
+        summary = []
+        for group_name, group_products in groups.items():
+            # Get all prices
+            prices = [p['price'] for p in group_products if p.get('price')]
+
+            # Calculate stats
+            total = len(group_products)
+            avg_price = sum(prices) / len(prices) if prices else 0
+            min_price = min(prices) if prices else 0
+            max_price = max(prices) if prices else 0
+
+            # Count missing descriptions
+            missing_desc = sum(1 for p in group_products if not p.get('description', '').strip())
+
+            summary.append({
+                'subcategory': group_name,
+                'total_products': total,
+                'average_price': round(avg_price, 2),
+                'min_price': min_price,
+                'max_price': max_price,
+                'missing_descriptions': missing_desc,
+                'duplicates_removed': 0
+            })
+
+        # Save to JSON
+        filepath = f"{self.folder}/{filename}"
+        with open(filepath, 'w', encoding='utf-8') as file:
+            json.dump(summary, file, indent=2, ensure_ascii=False)
+
+        print(f"✓ Saved summary to {filepath}")

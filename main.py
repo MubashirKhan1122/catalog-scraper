@@ -1,72 +1,83 @@
-"""Main entry point for the catalog scraper."""
+"""
+Simple Web Scraper - Main Program
+This is the entry point that runs everything.
+
+For 6th semester university students - Easy to understand!
+"""
 
 import os
-import sys
-
-# Add src directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from scraper.crawler import CatalogCrawler
-from scraper.parsers import ProductParser
-from scraper.exporters import DataExporter
-from scraper.utils import deduplicate_products
+from scraper.crawler import SimpleCrawler
+from scraper.parsers import SimpleParser
+from scraper.exporters import SimpleExporter
+from scraper.utils import remove_duplicates
 
 
 def main():
-    """Run the complete scraping workflow."""
+    """
+    Main function - Runs the complete scraping process.
+    Steps: Find categories -> Get products -> Parse details -> Save to files
+    """
     print("="*60)
-    print("E-Commerce Catalog Scraper")
+    print("  E-COMMERCE WEB SCRAPER")
+    print("="*60)
+    print()
+
+    # ========== CONFIGURATION ==========
+    # Website to scrape
+    WEBSITE = "https://webscraper.io/test-sites/e-commerce/static"
+
+    # Folder to save data
+    OUTPUT_FOLDER = "data"
+
+    # Make sure folder exists
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+    # ========== STEP 1: CREATE TOOLS ==========
+    print("Setting up scraper tools...")
+    crawler = SimpleCrawler(WEBSITE)  # For finding pages
+    parser = SimpleParser(WEBSITE)    # For extracting data
+    exporter = SimpleExporter(OUTPUT_FOLDER)  # For saving files
+    print("✓ Tools ready!\n")
+
+    # ========== STEP 2: FIND CATEGORIES ==========
+    print("="*60)
+    print("STEP 1: Finding Categories")
+    print("="*60)
+    categories = crawler.find_categories()
+    print(f"\n✓ Found {len(categories)} categories\n")
+
+    # ========== STEP 3: COLLECT PRODUCT URLs ==========
+    print("="*60)
+    print("STEP 2: Collecting Product URLs")
     print("="*60)
 
-    # Configuration
-    BASE_URL = "https://webscraper.io/test-sites/e-commerce/static"
-    OUTPUT_DIR = "data"
-
-    # Ensure output directory exists
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    # Initialize components
-    crawler = CatalogCrawler(BASE_URL)
-    parser = ProductParser(BASE_URL)
-    exporter = DataExporter(OUTPUT_DIR)
-
-    print(f"\nTarget website: {BASE_URL}")
-    print(f"Output directory: {OUTPUT_DIR}\n")
-
-    # Step 1: Discover categories
-    print("\n" + "="*60)
-    print("STEP 1: Discovering Categories")
-    print("="*60)
-    categories = crawler.discover_categories()
-    print(f"\nFound {len(categories)} categories\n")
-
-    # Step 2: Crawl all products
-    print("\n" + "="*60)
-    print("STEP 2: Crawling Products")
-    print("="*60)
     all_product_links = []
 
+    # Go through each category
     for category in categories:
         category_name = category['name']
         category_url = category['url']
 
-        products = crawler.crawl_category_products(category_name, category_url)
+        # Get all products in this category
+        products = crawler.get_all_products_in_category(category_name, category_url)
         all_product_links.extend(products)
 
-    print(f"\n{'='*60}")
-    print(f"Total product links collected: {len(all_product_links)}")
+    print(f"\n✓ Total product links found: {len(all_product_links)}\n")
+
+    # ========== STEP 4: GET PRODUCT DETAILS ==========
+    print("="*60)
+    print("STEP 3: Getting Product Details")
     print("="*60)
 
-    # Step 3: Parse product detail pages
-    print("\n" + "="*60)
-    print("STEP 3: Parsing Product Details")
-    print("="*60)
     all_products = []
+    total = len(all_product_links)
 
+    # Visit each product page
     for i, product_link in enumerate(all_product_links, 1):
-        print(f"Parsing product {i}/{len(all_product_links)}: {product_link.get('title', 'Unknown')}")
+        print(f"[{i}/{total}] {product_link['title'][:40]}...")
 
-        product_data = parser.parse_product_page(
+        # Extract all product information
+        product_data = parser.get_product_details(
             product_link['url'],
             product_link['category'],
             product_link['subcategory'],
@@ -76,45 +87,53 @@ def main():
         if product_data:
             all_products.append(product_data)
 
-    print(f"\nSuccessfully parsed {len(all_products)} products")
+    print(f"\n✓ Extracted details for {len(all_products)} products\n")
 
-    # Step 4: Deduplicate products
-    print("\n" + "="*60)
-    print("STEP 4: Deduplicating Products")
+    # ========== STEP 5: REMOVE DUPLICATES ==========
     print("="*60)
-    unique_products, duplicate_count = deduplicate_products(all_products)
-    print(f"Removed {duplicate_count} duplicate products")
-    print(f"Unique products: {len(unique_products)}")
-
-    # Step 5: Export data
-    print("\n" + "="*60)
-    print("STEP 5: Exporting Data")
-    print("="*60)
-    exporter.export_products(unique_products, "products.csv")
-    exporter.export_category_summary(unique_products, "category_summary.csv")
-    exporter.update_summary_duplicates("category_summary.csv", duplicate_count)
-
-    # Final summary
-    print("\n" + "="*60)
-    print("SCRAPING COMPLETED SUCCESSFULLY")
-    print("="*60)
-    print(f"Total products scraped: {len(unique_products)}")
-    print(f"Duplicates removed: {duplicate_count}")
-    print(f"Categories processed: {len(categories)}")
-    print(f"\nOutput files:")
-    print(f"  - {OUTPUT_DIR}/products.csv")
-    print(f"  - {OUTPUT_DIR}/category_summary.csv")
+    print("STEP 4: Removing Duplicates")
     print("="*60)
 
+    unique_products, dup_count = remove_duplicates(all_products)
+    print(f"✓ Removed {dup_count} duplicate products")
+    print(f"✓ Final count: {len(unique_products)} unique products\n")
 
+    # ========== STEP 6: SAVE TO FILES ==========
+    print("="*60)
+    print("STEP 5: Saving Data")
+    print("="*60)
+
+    # Save as CSV (Excel format)
+    exporter.save_to_csv(unique_products, "products.csv")
+    exporter.save_summary_csv(unique_products, "category_summary.csv")
+
+    # Save as JSON (Web format)
+    exporter.save_to_json(unique_products, "products.json")
+    exporter.save_summary_json(unique_products, "category_summary.json")
+
+    # ========== DONE! ==========
+    print()
+    print("="*60)
+    print("  SCRAPING COMPLETE!")
+    print("="*60)
+    print(f"Total Products: {len(unique_products)}")
+    print(f"Duplicates Removed: {dup_count}")
+    print(f"Categories: {len(categories)}")
+    print()
+    print("Output Files:")
+    print(f"  📄 {OUTPUT_FOLDER}/products.csv")
+    print(f"  📄 {OUTPUT_FOLDER}/products.json")
+    print(f"  📄 {OUTPUT_FOLDER}/category_summary.csv")
+    print(f"  📄 {OUTPUT_FOLDER}/category_summary.json")
+    print("="*60)
+
+
+# Run the program when this file is executed
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\nScraping interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\nError: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        print("\n\n⚠️  Stopped by user")
+    except Exception as error:
+        print(f"\n\n❌ Error: {error}")
+        print("Please check your internet connection and try again.")

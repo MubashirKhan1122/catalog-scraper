@@ -1,159 +1,104 @@
-"""Parsers for extracting data from product pages."""
+"""
+Simple parser to extract product data from pages.
+Easy to understand for students.
+"""
 
-from typing import Dict, Optional
 from bs4 import BeautifulSoup
-from .utils import safe_request, clean_text, parse_price, parse_rating, join_url
+from .utils import get_page, clean_text, get_price, get_number, join_url
 
 
-class ProductParser:
-    """Parser for extracting product details from product pages."""
+class SimpleParser:
+    """
+    Simple parser that extracts product information.
+    Gets: title, price, description, image, reviews
+    """
 
-    def __init__(self, base_url: str):
+    def __init__(self, website_url):
         """
-        Initialize the parser.
+        Start the parser.
 
         Args:
-            base_url: The base URL of the website
+            website_url: The main website URL
         """
-        self.base_url = base_url
+        self.website_url = website_url
 
-    def parse_product_page(self, product_url: str, category: str, subcategory: str, source_page: str) -> Optional[Dict]:
+    def get_product_details(self, product_url, category, subcategory, source_page):
         """
-        Parse a product detail page and extract all required information.
+        Extract all details from a product page.
 
         Args:
             product_url: URL of the product page
             category: Category name
             subcategory: Subcategory name
-            source_page: URL of the source listing page
+            source_page: Where we found this product
 
         Returns:
-            Dictionary containing product details or None if parsing fails
+            Dictionary with all product info
         """
-        response = safe_request(product_url)
-
-        if not response:
-            print(f"Failed to fetch product page: {product_url}")
+        # Get the product page
+        html = get_page(product_url)
+        if not html:
             return None
 
-        soup = BeautifulSoup(response.content, 'html.parser')
+        # Parse HTML
+        soup = BeautifulSoup(html, 'html.parser')
 
-        try:
-            # Extract product title
-            title_elem = soup.select_one('.title, h1.product-title, .product-name')
-            title = clean_text(title_elem.get_text()) if title_elem else ""
+        # Find each piece of information
+        title = self._get_title(soup)
+        price = self._get_price(soup)
+        description = self._get_description(soup)
+        image_url = self._get_image(soup)
+        review_count = self._get_reviews(soup)
 
-            # Extract price
-            price_elem = soup.select_one('.price, .product-price, .pull-right.price')
-            price_str = clean_text(price_elem.get_text()) if price_elem else None
-            price = parse_price(price_str)
+        # Put everything in a dictionary
+        product = {
+            'category': category,
+            'subcategory': subcategory,
+            'title': title,
+            'price': price,
+            'product_url': product_url,
+            'image_url': image_url,
+            'description': description,
+            'review_count': review_count,
+            'details': '',  # Extra details (if any)
+            'source_page': source_page
+        }
 
-            # Extract description
-            description_elem = soup.select_one('.description, .product-description')
-            description = clean_text(description_elem.get_text()) if description_elem else ""
+        return product
 
-            # Extract image URL
-            image_elem = soup.select_one('.img-responsive, .product-image img, img.img-responsive')
-            image_url = ""
-            if image_elem:
-                img_src = image_elem.get('src', '')
-                if img_src:
-                    image_url = join_url(self.base_url, img_src)
+    def _get_title(self, soup):
+        """Get product title."""
+        title_tag = soup.find(class_='title')
+        if title_tag:
+            return clean_text(title_tag.get_text())
+        return ""
 
-            # Extract review count or rating
-            review_elem = soup.select_one('.ratings, .review-count, [data-rating]')
-            review_count = 0
-            if review_elem:
-                review_text = clean_text(review_elem.get_text())
-                review_count = parse_rating(review_text) or 0
+    def _get_price(self, soup):
+        """Get product price."""
+        price_tag = soup.find(class_='price')
+        if price_tag:
+            price_text = price_tag.get_text()
+            return get_price(price_text)
+        return 0
 
-            # Extract additional details/specs
-            details = {}
-            detail_elems = soup.select('.product-details li, .specifications li')
-            for detail in detail_elems:
-                detail_text = clean_text(detail.get_text())
-                if detail_text:
-                    details[detail_text] = True
+    def _get_description(self, soup):
+        """Get product description."""
+        desc_tag = soup.find(class_='description')
+        if desc_tag:
+            return clean_text(desc_tag.get_text())
+        return ""
 
-            # Combine details into a single string
-            details_str = "; ".join(details.keys()) if details else ""
+    def _get_image(self, soup):
+        """Get product image URL."""
+        img_tag = soup.find('img', class_='img-responsive')
+        if img_tag and img_tag.get('src'):
+            return join_url(self.website_url, img_tag.get('src'))
+        return ""
 
-            product_data = {
-                'category': category,
-                'subcategory': subcategory,
-                'title': title,
-                'price': price,
-                'product_url': product_url,
-                'image_url': image_url,
-                'description': description,
-                'review_count': review_count,
-                'details': details_str,
-                'source_page': source_page
-            }
-
-            return product_data
-
-        except Exception as e:
-            print(f"Error parsing product {product_url}: {e}")
-            return None
-
-    def parse_listing_page_products(self, page_url: str, category: str, subcategory: str) -> list:
-        """
-        Parse products from a listing page (lightweight extraction).
-
-        Args:
-            page_url: URL of the listing page
-            category: Category name
-            subcategory: Subcategory name
-
-        Returns:
-            List of product dictionaries with basic info
-        """
-        response = safe_request(page_url)
-
-        if not response:
-            return []
-
-        soup = BeautifulSoup(response.content, 'html.parser')
-        products = []
-
-        # Find all product cards
-        product_cards = soup.select('.thumbnail')
-
-        for card in product_cards:
-            try:
-                # Extract title
-                title_elem = card.select_one('a.title')
-                title = clean_text(title_elem.get('title', '')) if title_elem else ""
-
-                # Extract price
-                price_elem = card.select_one('.price, .pull-right.price')
-                price_str = clean_text(price_elem.get_text()) if price_elem else None
-                price = parse_price(price_str)
-
-                # Extract description preview
-                desc_elem = card.select_one('.description')
-                description = clean_text(desc_elem.get_text()) if desc_elem else ""
-
-                # Extract product URL
-                product_url = ""
-                if title_elem:
-                    href = title_elem.get('href', '')
-                    if href:
-                        product_url = join_url(self.base_url, href)
-
-                products.append({
-                    'category': category,
-                    'subcategory': subcategory,
-                    'title': title,
-                    'price': price,
-                    'product_url': product_url,
-                    'description': description,
-                    'source_page': page_url
-                })
-
-            except Exception as e:
-                print(f"Error parsing product card: {e}")
-                continue
-
-        return products
+    def _get_reviews(self, soup):
+        """Get number of reviews."""
+        review_tag = soup.find(class_='ratings')
+        if review_tag:
+            review_text = review_tag.get_text()
+            return get_number(review_text)
+        return 0
